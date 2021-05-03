@@ -1,0 +1,790 @@
+---
+title: "PROJET R - M1 MAS"
+author: "Gabriel Souquière - Jeremy Castrique - Dimitri Nojac"
+date: "18/11/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+<style type="text/css">
+h1.title {
+  font-size: 38px;
+  color: DarkBlue;
+  text-align: center;
+}
+h4.author {
+  font-size: 18px;
+  color: DarkBlue;
+  text-align: center;
+}
+h4.date {
+  font-size: 18px;
+  font-family: "Times New Roman", Times, serif;
+  color: DarkRed;
+  text-align: center;
+}
+blockquote {
+    padding: 10px 20px;
+    margin: 0 0 20px;
+    font-size: 14px;
+    border-left: 5px solid #ccc;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+```
+
+
+<br>
+Le but de ce Projet est de **mettre en application des méthodes vues en cours et en TD** afin d'étudier et traiter un ensemble de données.  
+Nous décrirons et analyserons les résultats obtenus au fur et à mesure des questions.  
+Nous allons donc commencer par importer les données dont nous disposons, qui sont décrites ci-après:
+
+***
+
+**Données :**  
+**atp_players.csv** contenant un identifiant du joueur, son prénom, nom, sa main dominante, la date de naissance et le pays de provenance.
+**atp_rankings_90s.csv**, **atp_rankings_00s.csv** et **atp_rankings_10s.csv**. Ces fichiers contiennent les classements ATP par semaine, chaque fichier correspondant à un décennie (ex. atp_rankings_00s.csv correspond à la période 2000-2009 inclus). On dispose de la date du classement, la position dans le classement, l’identifiant du joueur classé et le nombre de ses points.  
+**matches98-20.csv** contenant des détails sur des matches entre 1998 et 2020. La description des colonnes de ce fichier se trouve dans matches_data_dictionary.txt.
+
+***
+
+Pour ce faire, dans "R" nous procédons comme suit:
+
+```{r import_data}
+#Importation du fichier "matches98-20.csv"
+matches98_20 <- read.csv(file = "matches98-20.csv",header = TRUE, sep = ",")
+#Importation du fichier "atp_players.csv" et renommage des colonnes
+atp_players <- read.csv(file = "atp_players.csv",header = FALSE, sep = ",", 
+                        col.names =c("player","first_name","last_name","dominant_hand","birth_date","country"))
+#Importation du fichier "atp_rankings_90s"
+ranking_1990 <- read.csv(file = "atp_rankings_90s.csv", header = TRUE, sep = ",", colClasses = rep("numeric", 4))
+#Importation du fichier "atp_rankings_00s"
+ranking_2000 <- read.csv(file = "atp_rankings_00s.csv", header = TRUE, sep = ",", colClasses = rep("numeric", 4))
+#Importation du fichier "atp_rankings_10s"
+ranking_2010 <- read.csv(file = "atp_rankings_10s.csv", header = TRUE, sep = ",", colClasses = rep("numeric", 4))
+```
+
+Une fois les données importées, nous pouvons commencer à les traiter.
+<br>
+<br>
+
+***
+
+### ATP Rankings & Players
+
+***
+
+
+#### Question 1 : Combien de joueurs ont été numéro 1 dans le classement ATP par décennie ?
+
+Pour répondre à cette question, nous allons filtrer chaque base **ranking** importée. On conservera ainsi seulement les données correspondants aux joueurs classés n°1.  
+Sur "R", le code correspond à ceci:
+
+```{r Q1}
+c("Le nombre de joueurs ayant été n°1 dans les années 1990 est :",
+  nrow(                     # On va compter le nombre de ligne de la table traitée et décrite juste en dessous
+    ranking_1990 %>%                # On prend la table des années 1990
+      filter(rank==1) %>%           # On filtre les joueurs ayant été n°1 (rang 1) dans cette table
+      group_by(player) %>%          # On groupe / trie le tableau en fonction des joueurs
+      summarise(nb = n())           # Enfin, on fusionne les mêmes joueurs en une seule ligne
+)                            #Renvoi du nombre de ligne compté
+)
+c("Le nombre de joueurs ayant été n°1 dans les années 2000 est :",
+  nrow(                     # On va compter le nombre de ligne de la table traitée et décrite juste en dessous
+    ranking_2000 %>%                # On prend la table des années 2000
+    filter(rank==1)%>%              # On filtre les joueurs ayant été n°1 (rang 1) dans cette table
+    group_by(player) %>%            # On groupe / trie le tableau en fonction des joueurs
+    summarise(nb = n())             # On fusionne les mêmes joueurs en une seule ligne
+)                           # Renvoi du nombre de lignes comptées
+)
+c("Le nombre de joueurs ayant été n°1 dans les années 2010 est :",
+  nrow(
+    ranking_2010 %>%
+      filter(rank==1)%>%             # Même procédé que pour les deux tables précédentes
+      group_by(player) %>%          
+      summarise(nb = n())           
+))
+```
+
+On remarque ainsi, que dans les années *1990*, **11** joueurs ont été numéro 1, tandis que dans les années *2000* seulement **9** joueurs l'ont été.  
+Enfin, dans les années *2010*, le nombre de joueurs ayant été numéro 1, chute à **4**.
+<br>
+<br>
+
+**Description et Analyse**  
+
+>Une année comporte 52 semaines. On remarque donc que dans une décennie, on a 9x52 semaines soit 468 semaines.    
+Ainsi, dans les années 1990 il y a eu 11 joueurs qui ont étés numéro 1. On peut donc penser qu'en moyenne qu'un joueur restait environ 42 semaines champion du monde.  
+En procédant de la même manière pour les deux autres décennies on peut penser qu'en moyenne chaque joueur restait 1 an champion du monde dans les années 2000, et plus de deux ans pour les années 2010.  
+Malheureusement on se rend bien compte qu'ici on ne prend pas la durée exacte du nombres de semaine qu'à été un joueur champion du monde et que l'on fait une moyenne générale sur tous les champions du monde. Pour remédier à ce problème on va faire un Top 15 des joueurs en fonction du nombres de semaines passées en étant champion du monde.
+
+
+#### Question 2 : Créer un Top 15 des joueurs en fonction du nombre de semaines passées en étant numéro 1 mondial sur la période 1990-2019 inclus. Afficher à chaque fois le nom, prénom et l’identifiant du joueur ainsi que le nombre de semaines.
+
+Pour cela, on va fusionner les bases **ranking** afin d'en avoir une seule qui contienne toutes les informations sur la période 1990-2019.  
+Ainsi cela donne, grâce à la fonction full_join :
+
+```{r, message=FALSE}
+#Création d'une base qui contient le rang des joueurs sur la période 1990 - 2010 en fusionnant les 3 bases par décennies.
+ranking_1990_2010 <- full_join( full_join(ranking_1990,ranking_2000), ranking_2010) 
+```
+
+Après création de notre nouvelle base, nous pouvons créer notre nouvelle base **Top15** correspondant aux 15 meilleurs joueurs mondiaux, sur la période 1990-2019.  
+Une Possibilité pour le code "R" est :
+
+```{r Top15}
+Top15 <- ranking_1990_2010 %>%    # Création de la base Top15 avec les critères ci dessous          
+  filter(rank==1) %>%                 # Filtre les joueurs ayant été numéo 1 mondial
+  group_by(player) %>%                # Groupe / trie le tableau en fonction des joueurs
+  summarise(nb_week = n()) %>%        # Fusion et compte des même joueurs sur une seule ligne
+  arrange(desc(nb_week)) %>%          # Réarrangement décroissant en fonction du nombre de semaines
+  slice(1:15)%>%                            # Prend les 15 premières lignes de cette base
+  inner_join(atp_players, by="player")%>%   # Fusion avec la base de joueurs (permet de récupérer nom, prénom)
+  select(last_name, first_name, nb_week)  # Sélection des colonnes qui nous intéressent
+```
+
+Ce qui nous renvoie la table **Top15** :
+
+```{r Top15_return,echo=FALSE}
+knitr::kable(Top15, format = "markdown", align = "lcc", col.names = c("Prénom","Nom", "Nombre de Semaines"))
+```
+<br>
+
+**Description et Analyse**  
+
+>On remarque donc ici, que l'on obtient des informations plus précises concernant le temps cumulé qu'un joueur est resté champion du monde des années 1990 à 2019. Plus important, on remarque qu'il y a 52*29 semaines sur la période étudié, soit 1508 semaines.  
+On peut remarquer que le champion du monde ayant la plus grande longévité cumulée, Roger Federer, a cumulé plus de `r Top15$nb_week[1]` semaines en étant n°1 mondial. Donc, Roger Federer à été champion du monde pendant `r round(Top15$nb_week[1]/1508*100, digits = 2)`% du temps entre 1990 et 2019. De plus les trois premiers champions du monde ayant une longévité la plus grande, portent à eux trois plus de 50% du temps le titre.
+De plus parmi ces 15 Joueurs ayant été champion du monde, la table est représentative de la période étudié. En effet parmi les 1508 semaines, la table nous informe sur `r sum(Top15$nb_week)` semaines soit  `r round(sum(Top15$nb_week)/1508*100, digits = 2)`% des semaines totales.
+
+<br>
+#### Question 3 : Combien de semaines le numéro 1 a été un gaucher ? Combien des gauchers ont été les premiers du classement ATP? Afficher le nom, prénom et le nombre de semaines pour chacun d’entre eux.
+
+De façon similaire, voici ce que nous renvoie le code suivant :
+
+```{r Q3}
+Top1_lefthanded <- ranking_1990_2010%>%
+  filter(rank==1)%>%                    # Filtre les joueurs ayant été numéro 1 mondial.
+  group_by(player)%>%                   # Trie la base de données par joueurs
+  summarise(nb_week = n())%>%           # Fusion  et commpte des même joueurs sur une seule ligne
+  inner_join(atp_players, by = "player") %>%  # Fusion avec le jeu de données atp_players.
+  filter(dominant_hand == "L")%>%             # Garde uniquement les gauchers
+  select(last_name, first_name, nb_week)%>%   # Sélectionne les colonnes demandées
+  arrange(desc(nb_week))                      # Affiche dans l'ordre décroissant
+```
+
+```{r Q3_return, echo=FALSE}
+  knitr::kable(Top1_lefthanded, format = "markdown", align = "lcc", col.names = c("Prénom", "Nom","Nombre de Semaines" ))
+```
+
+On remarque ainsi, que **3** des gauchers ont été les premiers du classement ATP, avec respectivement, *190 semaines* pour Rafaël Nadal, *6 semaines* pour Muster Thomas et Rios Marcelo. Au total nous avons donc **`r sum(Top1_lefthanded$nb_week)`** semaines où le premier joueur mondial à été un gaucher.
+<br>
+
+**Description et Analyse**  
+
+>On remarque que très peu de joueurs gauchers ont étés champion du monde. De plus, il y a une grande disparité entre la longévité du premier gaucher, Rafaël Nadal et les suivants. En effet, il est resté champion du monde plus de 15 fois plus longtemps que le temps du 2e et du 3e cumulé. 
+
+<br>
+#### Question 4 : Quel est le joueur le plus jeune à entrer dans le top 10 ATP (toujours sur la période 1990-2019) ?
+
+Nous allons répondre à cette question par création d'une base de donnée que l'on nommera **Top10**, ensuite nous prendrons la valeur minimale de l'âge du joueur à rentrer dans le Top10.  
+Une solution pour cette question est donc : 
+
+```{r Top10}
+Top10 <-  ranking_1990_2010%>%             #Création de la base Top10
+    filter(rank<11) %>%                           # Garde uniquement les 10 meilleurs classés par semaine
+    inner_join(atp_players, by = "player")        # Fusion avec le jeu de données atp_players
+
+# Transforme la date au format date (année, mois, jour).
+Top10$ranking_date = ymd(Top10$ranking_date)
+Top10$birth_date = ymd(Top10$birth_date)
+
+# Création de la variable age qui calcule l'âge des joueurs lorsqu'ils ont été top10 au classement
+Top10 <- Top10 %>%
+  mutate(age = difftime(Top10$ranking_date,Top10$birth_date, units = "days"))
+```
+
+On obtient ainsi la table top 10 de laquelle il ne reste plus qu'à prendre le plus jeune.  
+Cette opération se fait simplement par le code suivant et l'on obtient :
+
+```{r Young_Top10}
+Top10_jeune = Top10 %>%
+   filter(age == min(age))%>%                     # Garde uniquement le joueur le plus jeune
+   select(last_name, first_name, age)             # Selection des informations les plus pertinentes
+#Modification de la variable age de jours en année, en gardant 2 décimales.
+Top10_jeune$age = paste(as.character(round(Top10_jeune$age/365.2425, digits = 2)), "Ans", sep = " ")
+```
+
+```{r, echo=FALSE}
+  knitr::kable(Top10_jeune, format = "markdown" , align = "lcc", col.names = c("Nom", "Prénom", "Âge"))
+```
+
+Ainsi, **Michael Chang** est le plus jeune à rentrer dans le Top10 à seulement **17 ans**.
+<br>
+<br>
+
+#### Question 5 : Représenter l’évolution de l’âge moyen des joueurs du Top10 par an depuis 1990. L’âge doit être représenté en années (sans forcement prendre en compte la fluctuation du nombre de jours par an).
+Pour répondre à cette question, nous allons reprendre notre base **Top10** sur laquelle nous allons effectuer quelques traitements, commentés sur le code ci-dessous.
+
+```{r mean_age}
+# Change le format de la date de la colonne "ranking_date" et "birth_date" pour avoir uniquement l'année.
+Top10$ranking_date = format(Top10$ranking_date, format="%Y")
+Top10$birth_date = format(Top10$birth_date, format="%Y")
+# Transforme l'age de nombre de jours en années.
+Top10$age = floor(Top10$age/365.2425)
+                                            
+Top10_meanage = Top10%>%            # Création de notre nouvelle base Top10_meanage
+  group_by(ranking_date) %>%              # Trie la base de données par date.
+  summarise(meanage = mean(age))          # Fusion de l'âge moyen des joueurs du Top 10 sur une seule ligne par an
+```
+
+Une fois ces traitements faits, il ne nous reste plus qu'à afficher le graphe qui donne:
+
+```{r Plot_meanage, echo=FALSE}
+plot(Top10_meanage$ranking_date,                    # Année des tournois (abscisse)
+     Top10_meanage$meanage,                         # Âge moyen des joueurs aux tournoi (ordonnée)
+     type = "b", col = "darkblue", lwd = "2",       # Affichage de lignes et points en couleur et en gras.
+     xlab="années",ylab = "âge moyen",                         # Affiche le nom des axes sur le graphique
+     main="Evolution de l'âge moyen du Top10 par année")    # Affiche le titre du graphique
+```
+<br>
+
+**Description et Analyse**  
+
+>Le graphe très explicite nous permet d'observer que durant les années 1990 à 2010, la courbe reste stable, oscillant autour d'une moyenne d'âge de 24 an et demi. En revanche dès 2010, la moyenne d'âge augmente considérablement pour se stabiliser autour des 29 ans après 2015.
+
+<br>
+
+***
+### ATP Matches
+
+***
+
+
+#### Question 1 : Parmi les matchs où le perdant est mieux classé que le vainqueur, quel est le plus grand écart entre les deux classements ?
+
+Il suffit de prendre le code suivant expliqué, et on obtient le résultat intermédiaire.
+
+```{r}
+atp_matches_rank <- matches98_20  %>%
+  select(winner_rank, loser_rank) %>%   # Sélection des colonnes avec les rangs des gagnants et perdants.
+  filter(loser_rank < winner_rank) %>%  # Garde les matches ou le gagnant a un rang supérieur au perdant.    
+  mutate(rank_difference = winner_rank - loser_rank)  #Calcul la différence de rang entre les 2 joueurs.
+```
+
+En effet, maintenant, il nous faut prendre la valeur maximale de ce vecteur grâce à la fonction max. Ainsi, nous avons le résultat final qui vaut:
+
+```{r, echo=FALSE}
+max(atp_matches_rank$rank_difference)  # Affiche le résultat, soit la défférence maximum du vecteur créé précédement.
+```
+
+On observe donc un écart maximal de `r max(atp_matches_rank$rank_difference)` places dans le rang selon les conditions de la question.
+
+**Description et Analyse**
+>On remarque ici que rien n'est perdu et qu'un joueur ayant un rang très inférieur à un bon joueur peut tout à fait s'il le souhaite et qu'il s'en donne les moyens remporter un match contre plus fort -sur le papier- que soi. Le joueur battu a un rang mondial de 110 donc il est en dehors du Top100 au moment du match.
+
+#### Question 2 : Parmi les matches opposant un joueur du Top10 à un joueur hors Top100, quelle est la proportion des matchs gagnés par le joueur le moins bien classé ? Interpréter le résultat.
+Pour cela, on va chercher deux valeurs. En premier le nombre de matches gagnés par un joueur du Top10 et perdus par un joueur hors du Top100.
+
+```{r}
+nb_top10 = nrow(                          # Calcul le nombre de lignes de la base définie en argument
+  matches98_20 %>%                        # Sélection de la base
+    select(winner_rank, loser_rank) %>%   # Sélectionne les colonnes avec les rangs des gagnants et perdant.
+    filter(loser_rank > 100, winner_rank < 11)  # Filtre selon la consigne
+)
+```
+
+Ensuite, nous allons faire de même mais dans le cas ou le joueur du Top10 a perdu son match.
+
+```{r}
+nb_top100 = nrow(                           # Calcul le nombre de lignes
+  matches98_20 %>%                          # Sélection de la base
+    select(winner_rank, loser_rank) %>%     # Sélectionne les colonnes avec les rangs des gagnants et perdant.
+    filter(loser_rank < 11, winner_rank > 100)  # Filtre selon la consigne
+)
+```
+
+Ainsi, nous pouvons via un calcul simple obtenir le résultat attendu qui vaut : 
+
+```{r echo=FALSE}
+nb_top100/(nb_top100+nb_top10)*100        # Affiche le résultat en pourcentage.
+```
+
+**Description et Analyse**
+
+>Ce résultat appuie la description précédente, et l'on remarque bien qu'un joueur hors Top 100 peut très bien battre un joueur Top 10. De plus ce résultat n'est pas anodin, 12% signifie que plus d'un match sur 10 est remporté par un joueur hors top 100 sur l'ensemble des matchs opposant joueur Top 10 vs joueur hors Top 100.
+
+
+#### Question 3 : En considérant seulement les tournois du Grand Chelem, représenter le nombre de matchs en fonction de l’âge du vainqueur (les âges regroupés par nombre d’années entières).
+On va devoir faire un graphique sous forme d'histogramme pour que ce soit le plus visuel possible. Mais avant cela, il nous faut sélectionner et créer une base **Grand_Chelem** à partir de la base **matches98_20**  
+Ainsi,
+
+```{r}
+Grand_Chelem <- matches98_20 %>%                  # Affectation de la variable.
+  filter(tourney_level == "G") %>%                # Garde uniquement les grand chelem
+  group_by(winner_age_GC = floor(winner_age)) %>% # Trie la base de données par l'âge (en entier) des joueurs.
+  summarise(nb_match =n())                        # Fusion et comptage du nombre de matchs sur une seule ligne
+```
+
+nous permet d'obtenir ce que l'on souhaite. Il ne reste plus qu'à afficher le graphe :
+
+```{r, echo=FALSE}
+plot(Grand_Chelem$winner_age_GC,Grand_Chelem$nb_match,
+     type = "h", col = "darkblue", lwd = "10",    
+     xlab = "Age du vainqueur", ylab = "Matches", 
+     main="Nombre de matches gagnés en fonction de l'âge du vainqueur")
+plot_gc = recordPlot()
+```
+
+
+**Description et Analyse**
+
+>On remarque ici que la moyenne d'âge la plus probable pour gagner ses matchs au Grand Chelem se situe aux alentours de 23 à 29 ans.
+
+
+#### Question 4 : En considérant l’ensemble de matchs des gauchers ayant été au moins une fois dans le top 10, quelle est la proportion de matchs remportés par ceux-ci ? Et pour les droitiers ?
+
+A partir de **Top10** on détermine tous les gauchers qui ont été au moins une fois dans le top 10, pour ensuite obtenir le nombre total de matches qu'ils ont joués puis le nombre ceux qu'ils ont gagnés.
+
+```{r}
+# Récupération des gauchers qui ont été au moins une fois dans le Top10 
+Top10_lefthanded <- Top10 %>% 
+  filter(dominant_hand == "L") %>% 
+  distinct(player, last_name, first_name)
+
+# Récupération du nombre total de matches joués par ces derniers
+nb_matches_lefthanded <- nrow(matches98_20 %>% 
+                                filter(winner_id %in% Top10_lefthanded$player | loser_id %in% Top10_lefthanded$player))
+  
+# Récupération du nombre de matches gagnés pour ces derniers
+nb_matches_win_lefthanded <- nrow(matches98_20 %>% 
+                                filter(winner_id %in% Top10_lefthanded$player))
+
+```
+
+Les gauchers qui ont été au moins une fois dans le top 10 ont gagné **`r nb_matches_win_lefthanded/nb_matches_lefthanded*100`%** de leurs matches.  
+On répète l'opération pour les droitiers :
+
+```{r}
+#De même mais pour les droitiers
+Top10_righthanded <- Top10 %>% 
+  filter(dominant_hand == "R") %>% 
+  distinct(player, last_name, first_name)
+
+nb_matches_righthanded <- nrow(matches98_20 %>% 
+                                filter(winner_id %in% Top10_righthanded$player | loser_id %in% Top10_righthanded$player))
+
+nb_matches_win_righthanded <- nrow(matches98_20 %>% 
+                                filter(winner_id %in% Top10_righthanded$player))
+```
+
+On obtient que quand à eux les droitiers qui ont été au moins une fois dans le top 10 ont gagné **`r nb_matches_win_righthanded/nb_matches_righthanded*100`%** de leurs matches.
+
+**Description et Analyse**
+
+>On remarque déjà que le pourcentage est supérieur à 50% dans les deux cas, ce qui signifie qu'ils méritent ou ont mérité amplement leur place dans le Top10 durant cette période. Nous vous avouons que sur cette question, nous avons eu une ambiguité sur comment l'interpréter. Nous sommes donc parti sur cette interptétation. Si pendant toute la période 1990-2019, un joueur s'est retouvé une fois dans le Top10, alors nous allons prendre tous les matchs qu'il a eu sur la période 1990-2019. Ensuite nous allons voir combien de fois il a remporté ses matchs sur la période même s'il nétait plus dans le Top10.
+
+***
+### Focus sur les joueurs
+
+***
+
+
+#### Question 1 : Quels sont les 3 joueurs ayant gagné le plus de matchs ? Afficher leur nom, prénom et le nombre des victoires. Calculer la proportion de matchs gagnés pour chacun d’entre eux.
+Pour faire cela, on va récupérer le nombre de victoires par joueurs puis on va classer par ordre décroissant.  
+Enfin, on y annexera la table **atp_players** pour y récupérer les noms et prénoms des joueurs.  
+On a donc ainsi :
+
+```{r}
+big_winners <- matches98_20 %>%                   # Affectation de la variable
+  group_by(winner_id) %>%                         # Trie par identifiant d'un vainqueur
+  summarise(nb_de_victoire = n()) %>%             # Compte le nombre de lignes
+  arrange(desc(nb_de_victoire)) %>%               # Trie par nombre décroissant de victoire
+  inner_join(atp_players, by=c("winner_id" = "player")) %>%  # Fusionne les tables par rapport à player
+  select(last_name, first_name, nb_de_victoire, winner_id) %>%  #Winner_id laissé volontairement
+  slice(1:3)                                      # Renvoie les 3 premiers.
+```
+
+Ce qui nous donne :
+
+```{r, echo=FALSE}
+knitr::kable(big_winners, col.names = c("Nom","Prénom", "Nb_Victoires", "Identifiant"), align = "cccr")
+```
+
+Après récupération des identifiants grâce à la colonne *Winner_id* laissée intentionnellement à la question d'avant, on peut ensuite chercher la proportion de matches gagnés.  
+Ainsi, pour commencer, on va chercher le nombres total de matches joués pour chaque joueur. :
+
+```{r, include=FALSE}
+  #Récupération des id du top 3 
+id_federer = as.numeric(big_winners[1,4])
+id_nadal = as.numeric(big_winners[2,4])
+id_djokovic = as.numeric(big_winners[3,4])
+```
+
+```{r, results="hide"}
+#Nombres de matchs de Federer
+nb_matches_federer = nrow(                        
+  matches98_20 %>% 
+    filter(winner_id == id_federer | loser_id == id_federer) 
+)
+#Nombres de matchs de Nadal
+nb_matches_nadal = nrow(  
+  matches98_20 %>% 
+    filter(winner_id == id_nadal | loser_id == id_nadal) 
+)
+#Nombres de matchs de Djokovic
+nb_matches_djokovic = nrow(           
+  matches98_20 %>% 
+    filter(winner_id == id_djokovic | loser_id == id_djokovic) 
+)
+```
+
+Ainsi, d'après le code ci-dessus, on a que **Federer** à joué **`r nb_matches_federer`** matches, **Nadal** a quand à lui joué **`r nb_matches_nadal`** matchs, tandis que **Djokovic** à joué pour **`r nb_matches_djokovic`** matches.  
+  
+On fait la comparaison avec les victoires du tableaux précédent, et on obtient les proportions qui sont égales à :  
+**`r round(as.numeric(big_winners[1,3]/nb_matches_federer)*100, digits = 2)`%** pour Federer.  
+**`r round(as.numeric(big_winners[2,3]/nb_matches_nadal)*100, digits = 2)`%** pour Nadal.  
+**`r round(as.numeric(big_winners[3,3]/nb_matches_djokovic)*100, digits = 2)`%** pour Djokovic.  
+
+**Description et Analyse**
+
+> On remarque que les 3 meilleurs sont effectivement des personnalités connues. Si l'on demandait à des passants lambda de citer des joueurs de Tennis, ils citeraient probablement eux, plus potentiellement Yannick NOAH, devenu chanteur. On remarque de plus que si Djokovic à effectivement joué le moins de matchs, c'est celui qui en gagne le plus proportionnellement. Néanmoins il sont tous très proche et atteignent des scores très élevés sur leur proportions de matchs gagnés.
+
+
+#### Question 2 : Afficher l’année du premier match de Rafael Nadal. Quel est le nombre de victoires de Federer après le premier match de Nadal ? Et après le début du Djokovic ? Commenter les résultats.
+
+```{r}
+matches_Nadal <- matches98_20 %>% 
+  filter(winner_name == "Rafael Nadal" | loser_name == "Rafael Nadal") %>% # Recherche du joueur
+  select("tourney_name", "tourney_date") # Sélection des différentes variables
+first_match_Nadal <- min(matches_Nadal$tourney_date) # Recherche de la première date
+print(year(ymd(first_match_Nadal)))
+```
+
+Le premier match de Nadal a eu lieu en **2002**
+
+```{r, results="hide"}
+matches_Federer_after_Nadal <-nrow(
+  matches98_20 %>% 
+    filter(winner_name == "Roger Federer", tourney_date > first_match_Nadal) %>% 
+    select("tourney_name", "tourney_date"))
+```
+
+Le nombres de matches qu'a gagné **Federer** après Nadal est **`r matches_Federer_after_Nadal`**.
+
+```{r, include=FALSE}
+matches_Djokovic <- matches98_20 %>% 
+  filter(winner_name == "Novak Djokovic" | loser_name == "Novak Djokovic") %>% 
+  select("tourney_name", "tourney_date") 
+first_match_Djokovic <- min(matches_Djokovic$tourney_date)
+
+matches_Federer_after_Djokovic <- matches98_20 %>% 
+  filter(winner_name == "Roger Federer", tourney_date > first_match_Djokovic) %>% 
+  select("tourney_name", "tourney_date")
+```
+
+Avec le même code adapté à Djokovic, on obtient que **Federer** a gagné **`r nrow(matches_Federer_after_Djokovic)`** matches après le premier match de Djokovic.  
+D'ailleurs le premier match de **Djokovic** a eu lieu en **`r year(ymd(first_match_Djokovic))`**
+
+
+#### Question 3 : Pour ces trois joueurs calculer le pourcentage de matchs gagnés sur chaque type de surface (Carpet, Clay, Grass, Hard). Commenter les résultats et les illustrer sur un graphique.
+Pour faire cela, on va repartir de notre base **matches98_20**,  
+Ainsi, d'après le code suivant on obtient une base cohérente pour la question.
+
+```{r}
+Surfaces <- matches98_20%>%
+  select(winner_name, loser_name, surface)%>%
+  filter(winner_name %in% list("Roger Federer","Rafael Nadal","Novak Djokovic") | 
+         loser_name %in% list("Roger Federer","Rafael Nadal","Novak Djokovic"))
+```
+
+Nous allons donc maintenant calculer le pourcentages de matches gagnés pour chaque type de surfaces.
+
+```{r}
+Surfaces_losers <- Surfaces%>%
+  filter(loser_name %in% list("Roger Federer","Rafael Nadal","Novak Djokovic"))%>%
+  group_by(surface, loser_name)%>%
+  summarise(number = n())
+  
+Surfaces_winners <- Surfaces%>%
+  filter(winner_name %in% list("Roger Federer","Rafael Nadal","Novak Djokovic"))%>%
+  group_by(surface, winner_name)%>%
+  summarise(number = n())%>%
+  arrange(desc(number))%>%
+  head(-1)
+
+Surfaces <- merge(Surfaces_winners, Surfaces_losers, by.x= c("surface", "winner_name"), by.y= c("surface", "loser_name"))%>%
+  group_by(surface,winner_name)%>%
+  mutate(proportion=number.x/(number.x+number.y))%>%
+  select(surface, proportion, winner_name)
+```
+
+Nous avons maintenant calulés les pourcentages de matches gagnés par surfaces des 3 meilleurs joueurs.  
+
+Les voicis répertoriés dans la table Surfaces.
+
+```{r, echo=FALSE}
+knitr::kable(Surfaces, align = "lcr", col.names = c("Surfaces","Proportion","Nom"))
+```
+
+Maintenant faisons le graphe correspondant aux données :
+
+```{r, echo = FALSE}
+ggplot(Surfaces, aes(fill=surface, y=proportion, x=winner_name)) + 
+  geom_bar(position="dodge", stat="identity") + scale_fill_manual(values = c("#3C638E","#993300","#6C935C","#C9F364")) +
+  labs(title = "Proportion de victoires par type de terrain pour chaque joueur",
+       x = "Joueur",
+       y = "Pourcentage de victoire")
+```
+
+
+#### Question 4 : Quand Roger Federer est-il devenu numéro 1 pour la première fois ? Combien de joueurs lui ont succédé ?
+Executons-le code ci-dessous:
+
+```{r}
+t <- ranking_1990_2010 %>%                  # Affectation de la variable
+  filter(player == id_federer, rank == 1)   # Garde uniquement les lignes où Federer est 1e.
+
+Federer_n1_date = ymd(t$ranking_date[1])    # Tranforme la variable au format date (année, mois, jour)
+```
+
+Ainsi avec ce code, on remarque que Federer à été premier pour la première fois le `r Federer_n1_date`.  
+De plus, le nombre de joueurs qui lui ont succédé va nous être donné par le code suivant :
+
+```{r}
+nb_players_after <- ranking_1990_2010 %>%         # Affectation de la variable
+  filter(rank == 1, player != id_federer) %>%     # Garde les joueurs autre que Federer ayant été n°1
+  filter(ymd(ranking_date) > Federer_n1_date)%>%  # Garde  les top après la 1e date de Federer convertie en date
+  distinct(player) %>%                            # Retire tous les doublons
+  inner_join(atp_players, by = "player")%>%  # Fusionne avec les infomations sur les joueurs
+  select(first_name, last_name, country)
+```
+```{r, echo=FALSE}
+knitr::kable(nb_players_after, align = "ccr", col.names = c("Prénom","Nom","Pays"))
+```
+
+#### Question 5 : Représenter l’évolution du classement moyen par an pour Roger Federer ainsi que de son meilleur classement par an.
+Pour commencer nous allons récupérer le classement de Federer.  
+
+```{r}
+classement_federer <- ranking_1990_2010 %>% 
+  filter(player == id_federer)
+
+classement_federer$ranking_date = year(ymd(classement_federer$ranking_date)) #On ne garde que l'année de la date
+                                                                             #pour répondre à la question
+```
+
+Puis on récupère son classement moyen par an et son meilleur classement par an. 
+
+```{r}
+classement_moyen_federer <- classement_federer %>% 
+  group_by(ranking_date) %>% 
+  summarise(classement_moyen_par_an = mean(rank))  #On calcule la moyenne du classement pour chaque année en groupant par la date de classement
+
+meilleur_classement_federer <- classement_federer %>%  
+  group_by(ranking_date) %>% 
+  summarise(meilleur_classement_par_an = min(rank))  #On prend la plus petite valeur sur chaque année, ce qui correspond au meilleur classement
+```
+
+Il ne reste plus qu'à tracer les graphes correspondants et on obtient :  
+
+```{r graphes Q5, echo=FALSE}
+plot(classement_moyen_federer$ranking_date, classement_moyen_federer$classement_moyen_par_an, col = "darkblue", main ="Evolution du classement moyen de Federer par an", xlab = "Années", ylab = "Classement moyen", type = "p", cex = 0.7, ylim = rev(range(classement_moyen_federer$classement_moyen_par_an)))
+abline(h = 1, col = "red")
+legend("bottomright", fill = "red", legend = "Top 1")
+
+plot(meilleur_classement_federer$ranking_date, meilleur_classement_federer$meilleur_classement_par_an, col = "darkblue", main ="Evolution du meilleur classement de Federer par an", xlab = "Années", ylab = "Classement", type = "p", cex = 0.7, ylim = rev(range(classement_moyen_federer$classement_moyen_par_an)))
+abline(h = 1, col = "red")
+legend("bottomright", fill = "red", legend = "Top 1")
+```
+
+**Description et Analyse**
+
+>Il est donc clair que Federer a rapidement atteint le meilleur niveau et y reste depuis maintenant presque **20 ans**, avec notamment une première place conservée constamment entre 2005 et 2007.  
+Depuis 2003, il n'a en moyenne pas fait partie du Top 5 uniquement une seule fois, en 2016, et s'est classé au moins 2ème chaque année sauf en 2019 . Ce qui est reflété par son pourcentage important de victoire tout au long de sa carrière. 
+
+#### Question 6 : Quelles sont les années correspondant à son meilleur classement moyen ? Quel est le pourcentage de matchs gagnés sur cette période ?
+
+On commence par récupérer les années de son meilleur classement moyen :
+
+```{r}
+meilleures_annees <- classement_moyen_federer %>% 
+  filter(classement_moyen_par_an == min(classement_moyen_par_an)) 
+```
+
+```{r, echo=FALSE}
+knitr::kable(meilleures_annees, col.names = c("Années","Classement Moyen"), align = "cccr")
+```
+
+Federer a donc atteint son meilleur classement moyen entre **2005** et **2007**, il a été en moyenne **n°1**, il a donc gardé sa première place toutes les semaines.  
+Puis on récupère les matches de Federer sur ces années :
+
+```{r}
+matches_meilleures_annees <- matches98_20 %>% 
+  filter(winner_id == id_federer | loser_id == id_federer) 
+matches_meilleures_annees$tourney_date <- format(ymd(matches_meilleures_annees$tourney_date), format = "%Y")
+matches_meilleures_annees <- filter(matches_meilleures_annees, tourney_date %in% meilleures_annees$ranking_date)
+```
+
+Pour finir on compte le nombre de matches joués et le nombre de matches gagnés :
+
+```{r}
+nb_matches_meilleures_annees <- nrow(matches_meilleures_annees)
+nb_matches_win_meilleures_annees <- nrow(matches_meilleures_annees %>% 
+                                           filter(winner_id == id_federer))
+```
+
+On obtient donc que Federer a gagné **`r round(nb_matches_win_meilleures_annees/nb_matches_meilleures_annees*100, digits = 2)`%** sur cette période.
+
+
+***
+
+###Pour aller plus loin
+
+***
+
+Nous allons maintenant étudier quelques points supplémentaires. 
+<br>
+<br>
+<br>
+
+#####Point numéro 1 :
+<br>
+
+Tout d'abord nous avons voulu savoir quel était le Top 15 des meilleurs pays au tennis en fonction de la moyenne des points de leurs joueurs. On prend la précaution d'enlever les joueurs n'ayant pas de points pour éviter de biaiser le résultat. En effet, le manque de points est possiblement dû à un manque dans la base de donnée.  
+On obtient donc avec le code suivant notre table **Top15 Pays**
+
+```{r country_points}
+Top15_country <- ranking_1990_2010 %>% 
+  inner_join(atp_players, by="player") %>%
+  filter(points>100)%>%                      #Permet d'enelever les valeurs faibles considérées "biaisées"
+  group_by(country) %>% 
+  summarise(mean_points = mean(points))%>% 
+  arrange(desc(mean_points)) %>% 
+  slice(1:15)
+
+Player_country <- ranking_1990_2010 %>%     #Donne le nombre de joueurs moyen du Pays
+  inner_join(atp_players, by="player") %>%
+  filter(points>100) %>%
+  distinct(player, country) %>% 
+  group_by(country) %>% 
+  summarise(player_by_country = n())
+
+Top15_country<- inner_join(Top15_country,Player_country, by="country")
+```
+
+
+```{r, echo=FALSE}
+knitr::kable(Top15_country, col.names = c("Pays","Points Moyen", "Joueurs par pays"), align = "ccc")
+```
+
+On peut premièrement remarquer que la suisse est en tête, mais en comparant cette table avec notre table **Top15** qui rassemble les 15 joueurs ayant été champions du monde le plus longtemps, on remarque que la majorité des pays y est représenté. En effet plus de `r round(11/15, digits=2)`% ont au moins eu un joueur champion du monde dans le Top 15 des champions du monde.
+
+```{r, echo=FALSE}
+Top15_comparison <- Top15 %>%
+  left_join(atp_players, by.x="first_name", by.y = "first_name") %>% 
+  left_join(Top15_country) %>% 
+  select(last_name, first_name, country, mean_points, player_by_country)
+```
+
+```{r, echo=FALSE}
+knitr::kable(Top15_comparison, col.names = c("Nom","Prénom","Pays","Points Moyen du Pays", 'Nombres de "bons" joueurs du Pays'), align = "ccrr")
+```
+
+
+**Description et Analyse**
+>La Suisse et la Serbie sont 2 pays avec de très bons joueurs et un nombres de joueurs dans leurs pays significatif.
+Chypre est 3e mais n'a qu'un seul joueur, il n'est pas significatif.
+L'Espagne est intéressant car elle est 5e malgré un grand nombre de joueurs. L'Espagne a donc de très bons joueurs au tennis.
+
+
+##### Point numéro 2 :
+
+Nous voulons voir quel est la probabilité de gagner un match en fonction de son age de 14 à 40 ans. Pour cela nous allons éxécuter le code suivant:
+
+```{r}
+Nb_age <- matches98_20%>%
+  select(winner_age, loser_age, winner_id, loser_id)
+Nb_age$winner_age <- floor(Nb_age$winner_age)
+Nb_age$loser_age <- floor(Nb_age$loser_age)
+
+vecteur_win_age = c(NULL)
+vecteur_nb_age= c(NULL)
+
+for (i in (14:40)){
+  Nb_age_winner <- Nb_age %>%  #On récupère le nombre de joueurs différents qui ont gagné un match à un certain âge (i)
+  filter(winner_age == i)
+
+  Nb_age_loser <- Nb_age %>% #On récupère le nombre de joueurs différents qui ont perdu un match à un certain âge (i)
+  filter(loser_age == i & winner_age != i) 
+  
+  Nb_age_total <- nrow(Nb_age_loser)+nrow(Nb_age_winner) #On récupère le nombre total de joueurs différents qui ont joué un match à un certain âge (i)
+  vecteur_win_age <- c(vecteur_win_age, nrow(Nb_age_winner))
+  vecteur_nb_age <- c(vecteur_nb_age, Nb_age_total)
+
+}
+prop_win_age <- data.frame(vecteur_win_age)
+match_age <- data.frame(vecteur_nb_age)
+
+prop_win_age <- Nb_age %>%                         #On construit la table de matches gagnés pour chaque âge
+  group_by(winner_age) %>%
+  summarise(nb_match =n()) %>%    
+  slice(1:27)    
+```
+
+
+```{r ,echo=FALSE}
+plot(prop_win_age$winner_age,prop_win_age$nb_match/match_age$vecteur_nb_age,
+     type = "h", col = "darkblue", lwd = "10",
+     xlab = "Age du vainqueur", ylab = "Matches gagnés / Nombre de joueur du même âge",
+     main="Nombre de matches gagnés en fonction de l'âge du vainqueur")
+```
+
+
+**Description et Analyse**
+
+>Les joueurs de moins de 18 ans gagnent peu de matchs. C'est une période d'amélioration pour eux.
+Entre 20 ans et 38 ans, l'âge n'a pas vraiment d'importance dans les matchs. Les joueurs sont relativement équivalents
+Cependant, à partir de 39 ans, les joueurs perdent plus leurs matchs, les conditions physiques doivent sûrement y être pour quelque chose.
+
+### Point numéro 3:
+
+Suite à la partie 2 question 3, il semblait que le nombre de match gagnés par rapport à l'âge suivait une loi normale.  
+Nous avons voulu vérifier ceci en utilisant un test de normalité.
+
+```{r include=FALSE}
+Test <- matches98_20 %>%                  # Affectation de la variable.
+  filter(tourney_level == "G" & winner_rank <= 15) %>%
+  group_by(age = floor(winner_age)) %>% 
+  select(age) %>% 
+  arrange(age)
+```
+
+
+```{r}
+# Hypothèse nulle : l'échantillon suit une loi normale.
+shapiro.test(na.omit(Test$age)) # La p_value du test n'est pas significative donc on accepte que l'échantillon suit une loi normale
+x_barre <- weighted.mean(prop_win_age$winner_age, prop_win_age$nb_match) # Calcul de la moyenne de l'échantillon
+x_barre_square <- weighted.mean(prop_win_age$winner_age^2, prop_win_age$nb_match) # Calcul du carré des moyennes
+sigma <- sqrt(x_barre_square - x_barre^2) # Calcul de l'écart type
+I_50_inf <- qnorm(p=0.25, mean = x_barre, sd = sigma, lower.tail = TRUE) # Borne inférieur d'un intervalle de confiance à 50%
+I_50_sup <- qnorm(p=0.25, mean = x_barre, sd = sigma, lower.tail = FALSE) # Borne inférieur d'un intervalle de confiance à 50%
+I <- c(floor(I_50_inf),ceiling(I_50_sup)) # Création d'un vecteur contenant les bornes de l'intervalle
+I # Affichage d'un intervalle de confiance à 50%
+plot.new()
+plot_gc
+abline(v = I, col = "red", lwd = '2')
+# Intervalle µ
+µ_95_inf <- x_barre+qnorm(p=0.025, mean = 0, sd = 1, lower.tail = T)*sigma/sqrt(length(prop_win_age$winner_age)) # Calcul de la borne inférieur de l'intervalle de confiance pour µ à 95%
+µ_95_sup <- x_barre+qnorm(p=0.025, mean = 0, sd = 1, lower.tail = F)*sigma/sqrt(length(prop_win_age$winner_age)) # Calcul de la borne supérieur de l'intervalle de confiance pour µ à 95%
+I_µ_95 <- c(floor(µ_95_inf), ceiling(µ_95_sup)) # Création d'un vecteur contenant les bornes de l'intervalle de confiance pour µ à 95%
+I_µ_95 # Affichage de l'intervalle de confiance de µ
+# Interprétation :
+# Il y a une chance sur 2 qu'un match soit gagné par un joueur entre 21 et 33 ans.
+# Il y a 95% de chance que la moyenne d'âge des joueurs gagant un match soit entre 24 et 30 ans
+```
+
