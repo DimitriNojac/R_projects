@@ -1,0 +1,179 @@
+---
+title: "Projet R avancé, sujet Football"
+author: "Jérémy CASTRIQUE, Dimitri NOJAC et Gabriel SOUQUIERE"
+date: "01/05/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(DBI)
+library(tidyverse)
+```
+
+# Question 1 : Se connecter à la base SQLite football.sqlite
+
+```{r}
+con <- dbConnect(RSQLite::SQLite(), dbname = "football.sqlite")
+```
+
+# Question 2 : Lister les bases
+
+```{r}
+dbListTables(con)
+```
+
+# Question 3 : Afficher toutes les premières divisions présentes dans cette base de donnée (ligue 1 en France, série A en Italie etc...)
+
+```{r}
+dbListFields(con, "League")
+query <- "SELECT DISTINCT name FROM League"
+df <- dbGetQuery(con, query)
+df
+```
+
+# Question 4 : Afficher les champs de la table Match
+
+```{r}
+dbListFields(con, "Match")
+```
+
+# Question 5 : Extraire dans un data-frame les résultats de la Ligue 1 française
+
+```{r}
+# Précédemment on a remarqué que le nom de la ligue française est "France Ligue 1" on va donc s'en servir pour aller récupérer le numéro de la Ligue 1
+query <- "SELECT country_id FROM League WHERE name = 'France Ligue 1'"
+france_id <- dbGetQuery(con, query)
+
+
+# On se sert du numéro récupéré pour filtrer et récupérer les résultats de la Ligue 1
+query <- paste("SELECT * FROM Match WHERE country_id =", france_id[1])
+query
+df_match <- dbGetQuery(con, query)
+df_match
+```
+
+# Question 6 : Extraire dans un data-frame les résultats de la Ligue 1 française pour l’année 2015-2016 et ajouter le score du match et les points pour chaque match (match perdu = 0 pt, match nul = 1 pt et match gagné = 3 points) de la saison 2015-2016.
+
+```{r}
+# On se ressert du numéro récupéré précédemment. Pour le score on l'affiche au format "2 à 0"
+# Puis pour chaque match on attribue les points respectifs gagnés pour chaque équipe ie home team et away team
+query <- paste("SELECT * FROM Match WHERE season = '2015/2016' and country_id =", france_id[1])
+df_match_2015_2016 <- dbGetQuery(con, query)
+df_match_2015_2016 <- df_match_2015_2016 %>% 
+  mutate(score = paste(home_team_goal, "à", away_team_goal),
+         home_points = case_when(home_team_goal > away_team_goal ~ 3,
+                                 home_team_goal == away_team_goal ~ 1,
+                                 home_team_goal < away_team_goal ~ 0),
+         away_points = case_when(away_team_goal > home_team_goal ~ 3,
+                                 away_team_goal == home_team_goal ~ 1,
+                                 away_team_goal < home_team_goal ~ 0)) 
+```
+
+# Question 7 : Trouver la meilleure équipe à domicile (celle qui le plus de points en ne comptant que les match à domicile)
+
+```{r}
+# On groupe par home team puis on fait la somme des points obtenus à domicile puis on trie par ordre décroissant.
+# Pour finir on sélectionne le numéro api et on ne prend que le premier élément qui sera l'équipe avec le plus de points
+meilleure_equipe_domicle <- df_match_2015_2016 %>% 
+  group_by(home_team_api_id) %>% 
+  summarise(total_points_domicile = sum(home_points)) %>% 
+  arrange(desc(total_points_domicile)) %>% 
+  select(home_team_api_id) %>% 
+  head(1) %>% 
+  collect()
+meilleure_equipe_domicle
+
+# A l'aide du numéro api que l'on vient de récupérer on va chercher le nom de l'équipe à l'aide de la table Team
+query <- paste("SELECT team_long_name FROM Team WHERE team_api_id =", meilleure_equipe_domicle[1])
+resultat = dbGetQuery(con, query)
+resultat
+```
+
+Question 8 : Trouver ensuite les trois meilleures équipes du championnat 2015-2016.
+
+```{r}
+# Pour chaque équipe on commence par compter le nombre de points gagnés à domicile et à l'extérieur
+points_domicile <- df_match_2015_2016 %>% 
+  group_by(home_team_api_id) %>% 
+  summarise(total_points_domicile = sum(home_points)) 
+
+points_exterieur <- df_match_2015_2016 %>% 
+  group_by(away_team_api_id) %>% 
+  summarise(total_points_exterieur = sum(away_points)) 
+
+# Puis on joint les deux data frame obtenus pour pouvoir facilement faire la somme des points obtenus pour obtenir le total de points.
+# Pour sommer on groupe par équipe puis on réalise la somme.
+# On trie par ordre décroissant et on ne conserve que les 3 premières lignes. 
+# Cependant ici on garde les points pour, à la fin, afficher le nom des équipes ainsi que leur classement dans le top 3.
+total_points <- inner_join(points_domicile, points_exterieur, by=c("home_team_api_id" = "away_team_api_id"))
+total_points <- total_points %>% 
+  group_by(home_team_api_id) %>% 
+  summarise(points_totaux = total_points_domicile + total_points_exterieur) %>% 
+  arrange(desc(points_totaux))
+total_points
+
+# On récupère ici le nom des équipes de la Ligue 1 avec leur numéro pour pouvoir joindre 
+# la table contenant les points des 3 meilleures équipes et la table contenant les noms.
+query <- paste("SELECT team_api_id, team_long_name FROM Team WHERE team_api_id in", paste("(",toString(total_points$home_team_api_id),")", sep=""))
+query
+nom_equipes <- dbGetQuery(con, query)
+nom_equipes
+
+# On réalise la jointure et ainsi on obtient les trois meilleures équipes avec leurs points et leur nom.
+total_points <- total_points %>% 
+  inner_join(nom_equipes, by=c("home_team_api_id" = "team_api_id"))
+total_points %>% 
+  head(3)
+```
+
+# Question 9 : Trouver les trois meilleures équipes si nous ajoutons à l’attribution des points les bonus suivants :
+— bonus offensif : +1 point si gain d’un match avec un ecart de 2 buts ou plus ;
+— bonus spectacle : +1 point si le match est perdu mais l’équipe a quand même marqué 2 buts ou plus.
+
+```{r}
+# Ici on reprend le data frame créé à la question 6, où nous avions ajouté le score ainsi que les points obtenus par chaque équipe pour chaque match.
+# Il ne reste plus qu'à appliquer les bonus lorsque les conditions le permettent. 
+# Pour cela on modifie les colonnes home_points et away_points à l'aide d'ifelse.
+df_bonus <- df_match_2015_2016 %>% 
+  mutate(home_points = ifelse(home_team_goal >= away_team_goal + 2, home_points + 1, home_points),
+         home_points = ifelse(home_team_goal < away_team_goal & home_team_goal >= 2, home_points + 1, home_points),
+         away_points = ifelse(away_team_goal >= home_team_goal + 2, away_points + 1, away_points),
+         away_points = ifelse(away_team_goal < home_team_goal & away_team_goal >=2, away_points + 1, away_points))
+
+# Après avoir attribué les bonus on reprend le même code que la question 8
+
+points_domicile <- df_bonus %>% 
+  group_by(home_team_api_id) %>% 
+  summarise(total_points_domicile = sum(home_points)) 
+
+points_exterieur <- df_bonus %>% 
+  group_by(away_team_api_id) %>% 
+  summarise(total_points_exterieur = sum(away_points)) 
+
+total_points <- inner_join(points_domicile, points_exterieur, by=c("home_team_api_id" = "away_team_api_id"))
+total_points <- total_points %>% 
+  group_by(home_team_api_id) %>% 
+  summarise(points_totaux = total_points_domicile + total_points_exterieur) %>% 
+  arrange(desc(points_totaux))
+total_points
+
+query <- paste("SELECT team_api_id, team_long_name FROM Team WHERE team_api_id in", paste("(",toString(total_points$home_team_api_id),")", sep=""))
+query
+nom_equipes <- dbGetQuery(con, query)
+nom_equipes
+
+total_points <- total_points %>% 
+  inner_join(nom_equipes, by=c("home_team_api_id" = "team_api_id"))
+total_points %>% 
+  head(3)
+
+```
+
+```{r}
+dbDisconnect(con)
+```
+
